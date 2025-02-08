@@ -1,0 +1,31 @@
+{
+  "name": "upfirst_oauth",
+  "version": "1.0.0",
+  "description": "Coding Task 2 for upfirst application",
+  "main": "index.ts",
+  "scripts": {
+    "test": "vitest",
+    "coverage": "vitest run --coverage",
+    "dev": "nodemon index.ts",
+    "build": "npx tsc",
+    "run": "node dist/index.js",
+    "start": "npx tsc && node dist/index.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.21.2",
+    "jose": "^5.9.6"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.13.1",
+    "@types/supertest": "^6.0.2",
+    "@vitest/coverage-v8": "^3.0.5",
+    "nodemon": "^3.1.9",
+    "supertest": "^7.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}
