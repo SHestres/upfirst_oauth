@@ -1,15 +1,12 @@
 import express, { Express, Request, Response } from 'express';
 import * as jose from 'jose';
-import { validateParams, buildURI, authorizeRequest, generateCode } from './oauthutil';
-import { valid_codes, valid_redirect_uris } from './oauthvalues';
+import { validateParams, buildURI,  generateCode, validateTokenRequest, generateTokens } from './oauthutil';
+import { authorizationCodeExpirationLength, jwtExpirationLength, valid_codes, valid_redirect_uris, valid_refresh_tokens } from './oauthvalues';
+import { authorizeRequest } from './auth';
 
 
 export const app: Express = express();
 const port = 8080;
-
-app.get('/', (req: Request, res: Response) => {
-    res.send("Basic Express Setup");
-})
 
 app.get('/api/oauth/authorize', async (req: Request, res: Response) => {
     let redirect_uri = req.query.redirect_uri?.toString() ?? "";
@@ -35,7 +32,7 @@ app.get('/api/oauth/authorize', async (req: Request, res: Response) => {
         return;
     }
 
-    // Authorize request
+    // Authorize request with user
     let auth = authorizeRequest();
     if(!auth.success){
         res.redirect(buildURI(redirect_uri, {error: 'access_denied', error_description: auth.message}));
@@ -44,10 +41,40 @@ app.get('/api/oauth/authorize', async (req: Request, res: Response) => {
 
     // Generate and store authorization code
     let code = generateCode();
-    valid_codes[code] = {expiration: Date.now() + 600000, client_id: client_id!.toString(), redirect_uri: redirect_uri};
+    valid_codes[code] = {expiration: Date.now() + authorizationCodeExpirationLength, client_id: client_id!.toString(), redirect_uri: redirect_uri, resource_owner: "SOME_USER"};
 
     // Redirect
     res.redirect(buildURI(redirect_uri, {code: code, state: state?.toString()}));
+})
+
+app.use('/api/oauth/token', express.urlencoded({extended: true}));
+
+app.post('/api/oauth/token', (req: Request, res: Response) => {
+    let {grant_type, code, redirect_uri, client_id, refresh_token, client_secret} = req.body;
+
+    // Validate request
+    let validation = validateTokenRequest(grant_type, code, redirect_uri, client_id, refresh_token, client_secret);
+    if(!validation.success){
+        res.status(400).json(validation.error);
+        return;
+    }
+
+    // Generate and store token
+    generateTokens(validation.validKey, jwtExpirationLength)
+
+    // Send response
+    .then((tokens) => {
+        res.status(200).json({
+            access_token: tokens.jwt,
+            token_type: 'bearer',
+            expires_in: jwtExpirationLength, 
+            refresh_token: tokens.refresh,
+        })
+    })
+    .catch((err: any) => {
+        console.error(err.message);
+        res.sendStatus(500);
+    })
 })
 
 app.listen(port, () => {
