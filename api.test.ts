@@ -125,6 +125,17 @@ describe('Authorization endpoint', () => {
         expect(response.headers).toHaveProperty('location');
         expect(response.header['location']).toMatch(/code=[^&]/i);
     })
+
+    it('should redirect with internal server_error if error happens after redirect_uri is validated', async() => {
+        vi.spyOn(auth, 'authorizeRequest').mockImplementation(() => {throw new Error('Test error')});
+
+        const response = await request(app)
+        .get('/api/oauth/authorize?client_id=upfirst&redirect_uri=http%3A%2F%2Flocalhost%3A8081%2Fprocess&response_type=code&state=SOME_STATE')
+        .expect(302)
+        
+        expect(response.headers).toHaveProperty('location')
+        expect(response.header['location']).toMatch(/error=server_error/i);
+    })
 })
 
 

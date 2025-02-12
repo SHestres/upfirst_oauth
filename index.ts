@@ -25,26 +25,33 @@ app.get('/api/oauth/authorize', async (req: Request, res: Response) => {
         return;
     }
 
-    // Validate request
-    let paramCheck = validateParams(response_type, client_id);
-    if(!paramCheck.success) {
-        res.redirect(buildURI(redirect_uri, paramCheck.error));
-        return;
+    try{
+        // Validate request
+        let paramCheck = validateParams(response_type, client_id);
+        if(!paramCheck.success) {
+            res.redirect(buildURI(redirect_uri, paramCheck.error));
+            return;
+        }
+
+        // Authorize request with user
+        let auth = authorizeRequest();
+        if(!auth.success){
+            res.redirect(buildURI(redirect_uri, {error: 'access_denied', error_description: auth.message}));
+            return;
+        }
+
+        // Generate and store authorization code
+        let code = generateCode();
+        valid_codes[code] = {expiration: Date.now() + authorizationCodeExpirationLength, client_id: client_id!.toString(), redirect_uri: redirect_uri, resource_owner: "SOME_USER"};
+
+        // Redirect
+        res.redirect(buildURI(redirect_uri, {code: code, state: state?.toString()}));
     }
-
-    // Authorize request with user
-    let auth = authorizeRequest();
-    if(!auth.success){
-        res.redirect(buildURI(redirect_uri, {error: 'access_denied', error_description: auth.message}));
-        return;
+    catch (err: any){
+        // Redirect with internal server_error
+        console.error('Error in authorization endpoint: ' + err.message);
+        res.redirect(buildURI(redirect_uri, {error: 'server_error', error_description: 'Internal server error'}))
     }
-
-    // Generate and store authorization code
-    let code = generateCode();
-    valid_codes[code] = {expiration: Date.now() + authorizationCodeExpirationLength, client_id: client_id!.toString(), redirect_uri: redirect_uri, resource_owner: "SOME_USER"};
-
-    // Redirect
-    res.redirect(buildURI(redirect_uri, {code: code, state: state?.toString()}));
 })
 
 app.use('/api/oauth/token', express.urlencoded({extended: true}));
