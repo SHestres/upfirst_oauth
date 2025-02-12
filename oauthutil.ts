@@ -3,6 +3,9 @@ import * as crypto from 'crypto';
 import * as jose from 'jose';
 import { authenticateClient, getUserPermissions } from './auth';
 
+/**
+ * Check that all necessary params for authorization are present and valid. This excludes checks for a valid redirect_uri
+ */
 export function validateParams(response_type: any, client_id: any)
 : {success: true} | {success: false, error: {error: string, error_description?: string}}
 {
@@ -33,6 +36,9 @@ export function validateParams(response_type: any, client_id: any)
     return {success: true};
 }
 
+/**
+ * Create a uri string with the provided object as query parameters
+ */
 export function buildURI(orig: string, params: {[index: string]: string | undefined}): string{
     let paramString = Object.entries(params).filter(p => p[1] !== undefined).map(p => p[0] + '=' + p[1]).join('&');
     if(paramString.length > 0) orig += orig.includes('?') ? '&' : '?';
@@ -44,7 +50,9 @@ export function generateCode(): string {
     return crypto.generateKeySync('aes', {length: 128}).export().toString('hex');
 }
 
-
+/**
+ * Verify all parameters necessary to grant an access token are present and valid. This also checks that the request is authorized.
+ */
 export function validateTokenRequest(grant_type: string | undefined, code: string | undefined, redirect_uri: string | undefined, client_id: string | undefined, refresh_token: string | undefined, client_secret: string | undefined)
 : {success: true, validKey: string} | {success: false, error: {error: string, error_description?: string}}
 {
@@ -168,7 +176,6 @@ export function validateTokenRequest(grant_type: string | undefined, code: strin
 
         validKey = refresh_token;
     }
-
 
     else return {
         success: false,
