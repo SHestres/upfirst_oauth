@@ -1,10 +1,10 @@
 import {describe, it, expect, vi, afterEach, test, should, beforeEach } from 'vitest';
 import request from 'supertest';
-import { app } from './index';
-import * as oauthutil from './oauthutil';
-import * as auth from './auth'
+import { app } from '../index';
+import * as oauthutil from '../oauthutil';
+import * as auth from '../auth'
 import { fail } from 'assert';
-import { authorizationCodeExpirationLength, jwtExpirationLength, refreshTokenExpirationLength, valid_codes, valid_refresh_tokens } from './oauthvalues';
+import { authorizationCodeExpirationLength, jwtExpirationLength, refreshTokenExpirationLength, valid_codes, valid_refresh_tokens } from '../oauthvalues';
 
 afterEach(() => {
     vi.resetAllMocks();

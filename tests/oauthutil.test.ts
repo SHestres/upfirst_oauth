@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildURI } from './oauthutil';
+import { buildURI } from '../oauthutil';
 
 describe('Uri builder', () => {
     it('should return just the original url when given empty params object', () => {
