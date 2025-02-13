@@ -1,4 +1,4 @@
-import { confidential_clients, user_permissions } from "./oauthvalues";
+import { clients, user_permissions } from "./oauthvalues";
 
 /**
  * Fetch the permissions string for a given user
@@ -12,8 +12,8 @@ export function getUserPermissions(user: string){
  * Authenticate confidential clients. Succeeds by default if given client is not stored as confidential
  */
 export function authenticateClient(client_id: string, client_secret: string | undefined){
-    if(confidential_clients[client_id])
-        return confidential_clients[client_id].client_secret == client_secret;
+    if(clients[client_id].confidential)
+        return clients[client_id].client_secret == client_secret;
     else 
         return true;
 }

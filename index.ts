@@ -1,7 +1,7 @@
 import express, { Express, Request, Response } from 'express';
 import * as jose from 'jose';
-import { validateParams, buildURI,  generateCode, validateTokenRequest, generateTokens } from './oauthutil';
-import { authorizationCodeExpirationLength, jwtExpirationLength, valid_codes, valid_redirect_uris, valid_refresh_tokens } from './oauthvalues';
+import { validateParams, buildURI,  generateCode, validateTokenRequest, generateTokens, validateRedirectURI } from './oauthutil';
+import { authorizationCodeExpirationLength, jwtExpirationLength, valid_codes, clients, valid_refresh_tokens } from './oauthvalues';
 import { authorizeRequest } from './auth';
 
 
@@ -9,25 +9,22 @@ export const app: Express = express();
 const port = 8080;
 
 app.get('/api/oauth/authorize', async (req: Request, res: Response) => {
-    let redirect_uri = req.query.redirect_uri?.toString() ?? "";
     let {response_type, client_id, state} = req.query;
+    let redirect_uri = req.query.redirect_uri?.toString() ?? "" 
 
-    // Strip redirect_uri fragment
-    redirect_uri = redirect_uri.split('#')[0];
-
-    // Validate redirect_uri
-    if(!redirect_uri){
-        res.status(400).send('Please provide redirect_uri, no default defined');
+    // Validate client_id and redirect_uri
+    let uriCheck = validateRedirectURI(client_id?.toString(), redirect_uri);
+    if(!uriCheck.success){
+        res.status(400).send(uriCheck.message);
         return;
     }
-    else if(!valid_redirect_uris.includes(redirect_uri)){
-        res.status(400).send('Invalid redirect_uri');
-        return;
-    }
+
+    // Use default redirect_uri if none supplied
+    redirect_uri ||= clients[client_id!.toString()]?.redirect_uris[0] ?? "";
 
     try{
-        // Validate request
-        let paramCheck = validateParams(response_type, client_id);
+        // Validate rest of request
+        let paramCheck = validateParams(response_type?.toString());
         if(!paramCheck.success) {
             res.redirect(buildURI(redirect_uri, paramCheck.error));
             return;
@@ -58,6 +55,9 @@ app.use('/api/oauth/token', express.urlencoded({extended: true}));
 
 app.post('/api/oauth/token', (req: Request, res: Response) => {
     let {grant_type, code, redirect_uri, client_id, refresh_token, client_secret} = req.body;
+
+    // Use default redirect_uri if none supplied
+    redirect_uri ||= clients[client_id?.toString()]?.redirect_uris[0] ?? "";
 
     // Validate request
     let validation = validateTokenRequest(grant_type, code, redirect_uri, client_id, refresh_token, client_secret);

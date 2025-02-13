@@ -4,7 +4,7 @@ import { app } from './index';
 import * as oauthutil from './oauthutil';
 import * as auth from './auth'
 import { fail } from 'assert';
-import { authorizationCodeExpirationLength, jwtExpirationLength, refreshTokenExpirationLength } from './oauthvalues';
+import { authorizationCodeExpirationLength, jwtExpirationLength, refreshTokenExpirationLength, valid_codes, valid_refresh_tokens } from './oauthvalues';
 
 afterEach(() => {
     vi.resetAllMocks();
@@ -53,12 +53,16 @@ describe('Challenge Tests', () => {
 })
 
 describe('Authorization endpoint', () => {
-    it('should respond bad request when no redirect_uri supplied', async () => {
+    it('should redirect to default redirect_uri when none supplied', async () => {
+        vi.spyOn(oauthutil, 'generateCode').mockReturnValue('SOME_CODE');
+
         const response = await request(app)
         .get('/api/oauth/authorize?client_id=upfirst&response_type=code&state=SOME_STATE')
+        .expect(302);
 
-        expect(response.status).toBe(400);
-        expect(response.text).toMatch(/redirect_uri/i);
+        expect(response.status).toBe(302);
+        expect(response.headers).toHaveProperty('location');
+        expect(response.header['location']).toMatch('http://default.com?code=SOME_CODE&state=SOME_STATE');
     })
 
     it('should respond bad request when bad redirect_uri supplied', async () => {
@@ -69,13 +73,12 @@ describe('Authorization endpoint', () => {
         expect(response.text).toMatch(/redirect_uri/i);
     })
 
-    it('should redirect with error invalid_request when client_id missing', async () => {
+    it('should return 400 when client_id missing', async () => {
         const response = await request(app)
         .get('/api/oauth/authorize?redirect_uri=http%3A%2F%2Flocalhost%3A8081%2Fprocess&response_type=code&state=SOME_STATE')
+        .expect(400)
 
-        expect(response.status).toBe(302);
-        expect(response.headers).toHaveProperty('location');
-        expect(response.header['location']).toMatch(/error=invalid_request/i);
+        expect(response.text).toMatch(/client_id/i);
     })
 
     it('should redirect with error invalid_request when response_type missing', async () => {
@@ -88,13 +91,12 @@ describe('Authorization endpoint', () => {
     })
 
 
-    it('should redirect with error unauthorized_client when bad client_id supplied', async () => {
+    it('should return 400 when bad client_id supplied', async () => {
         const response = await request(app)
         .get('/api/oauth/authorize?client_id=badid&redirect_uri=http%3A%2F%2Flocalhost%3A8081%2Fprocess&response_type=code&state=SOME_STATE')
+        .expect(400);
 
-        expect(response.status).toBe(302);
-        expect(response.headers).toHaveProperty('location');
-        expect(response.header['location']).toMatch(/error=unauthorized_client/i);
+        expect(response.text).toMatch(/client_id/i);
     })
 
     it('should redirect with error access_denied when authorization fails', async () => {
@@ -136,12 +138,25 @@ describe('Authorization endpoint', () => {
         expect(response.headers).toHaveProperty('location')
         expect(response.header['location']).toMatch(/error=server_error/i);
     })
+
+    it('should redirect to default redirect_uri if none is supplied')
+
+    it('should redirect to supplied redirect_uri if multiple are registered')
+
+    it('should error if a parameter is provided more than once?')
+
 })
 
+function clearCodesAndTokens(){
+    Object.keys(valid_codes).forEach(k => delete valid_codes[k]);
+    Object.keys(valid_refresh_tokens).forEach(k => delete valid_refresh_tokens[k]);
+}
 
 describe('Token endpoint', () => {
 
-    beforeEach(async () => {
+    beforeEach(async (context) => {
+        clearCodesAndTokens();
+
         vi.spyOn(oauthutil, 'generateCode').mockReturnValue('SOME_CODE');
 
         const authResponse = await request(app)
@@ -151,9 +166,7 @@ describe('Token endpoint', () => {
     test.each([
         ['grant_type', ''],
         ['code', 'authorization_code'],
-        ['redirect_uri', 'authorization_code'],
         ['client_id', 'authorization_code'],
-        ['redirect_uri', 'refresh_token'],
         ['client_id', 'refresh_token'],
         ['refresh_token', 'refresh_token']
     ])('should return invalid_request error when %s is missing from request and grant type is %s', async (skipped, grant_type) => {
@@ -182,6 +195,44 @@ describe('Token endpoint', () => {
         .post('/api/oauth/token')
         .set('Content-Type', 'application/x-www-form-urlencoded')
         .send('grant_type=authorization_code&code=SOME_CODE&client_id=upfirst&redirect_uri=http://localhost:8081/process')
+        .expect(400);
+
+        expect(tokenResponse.body).toHaveProperty('error');
+        expect(tokenResponse.body.error).toBe('invalid_client');
+        if(tokenResponse.body.error_description) expect(tokenResponse.body.error_description).toMatch(/authentication/i);
+    })
+
+    it('should return successfully when confidential client is used', async () => {
+        clearCodesAndTokens();
+
+        const authResponse = await request(app)
+        .get('/api/oauth/authorize?client_id=confidential&response_type=code&state=SOME_STATE')
+
+        const tokenResponse = await request(app)
+        .post('/api/oauth/token')
+        .set('Content-Type', 'application/x-www-form-urlencoded')
+        .send('grant_type=authorization_code&code=SOME_CODE&client_id=confidential&client_secret=SOME_SECRET')
+        .expect(200);
+
+    })
+
+    it('should fail to authenticate confidential client without client_secret', async() => {
+        const tokenResponse = await request(app)
+        .post('/api/oauth/token')
+        .set('Content-Type', 'application/x-www-form-urlencoded')
+        .send('grant_type=authorization_code&code=SOME_CODE&client_id=confidential&redirect_uri=http://localhost:8081/process')
+        .expect(400);
+
+        expect(tokenResponse.body).toHaveProperty('error');
+        expect(tokenResponse.body.error).toBe('invalid_client');
+        if(tokenResponse.body.error_description) expect(tokenResponse.body.error_description).toMatch(/authentication/i);
+    })
+
+    it('should fail to authenticate confidential client with incorrect client_secret', async() => {
+        const tokenResponse = await request(app)
+        .post('/api/oauth/token')
+        .set('Content-Type', 'application/x-www-form-urlencoded')
+        .send('grant_type=authorization_code&code=SOME_CODE&client_id=confidential&client_secret=BAD_SECRET&redirect_uri=http://localhost:8081/process')
         .expect(400);
 
         expect(tokenResponse.body).toHaveProperty('error');
@@ -410,4 +461,62 @@ describe('Token endpoint', () => {
         vi.useRealTimers();
     })
 
+    it('should use default redirect_uri if none supplied', async () => {
+        clearCodesAndTokens()
+
+        const authResponse = await request(app)
+        .get('/api/oauth/authorize?client_id=upfirst&response_type=code&state=SOME_STATE')
+
+        const tokenResponse = await request(app)
+        .post('/api/oauth/token')
+        .set('Content-Type', 'application/x-www-form-urlencoded')
+        .send('grant_type=authorization_code&code=SOME_CODE&client_id=upfirst')
+        .expect(200);
+    })
+
+    it('should return invalid_grant error if non-default redirect_uri was used in authorization but none supplied when getting token', async () => {
+        const tokenResponse = await request(app)
+        .post('/api/oauth/token')
+        .set('Content-Type', 'application/x-www-form-urlencoded')
+        .send('grant_type=authorization_code&code=SOME_CODE&client_id=upfirst')
+        .expect(400);
+
+        expect(tokenResponse.body).toHaveProperty('error');
+        expect(tokenResponse.body.error).toBe('invalid_grant');
+        if(tokenResponse.body.error_description) expect(tokenResponse.body.error_description).toMatch(/redirect_uri/i);
+    })
+
+    it('should return invalid_grant error when different (but both valid) redirect_uri supplied for authorization and token requests', async () => {
+        clearCodesAndTokens();
+
+        const authResponse = await request(app)
+        .get('/api/oauth/authorize?client_id=upfirst&redirect_uri=http%3A%2F%2Flocalhost%3A8081%2Fprocess&response_type=code&state=SOME_STATE')
+
+        const tokenResponse = await request(app)
+        .post('/api/oauth/token')
+        .set('Content-Type', 'application/x-www-form-urlencoded')
+        .send('grant_type=authorization_code&code=SOME_CODE&client_id=upfirst&redirect_uri=http://default.com')
+        .expect(400);
+
+        expect(tokenResponse.body).toHaveProperty('error');
+        expect(tokenResponse.body.error).toBe('invalid_grant');
+        if(tokenResponse.body.error_description) expect(tokenResponse.body.error_description).toMatch(/redirect_uri/i);
+    })
+
+    it('should return invalid_grant error when no redirect_uri supplied for authorization and non-default supplied for token request', async () => {
+        clearCodesAndTokens();
+
+        const authResponse = await request(app)
+        .get('/api/oauth/authorize?client_id=upfirst&response_type=code&state=SOME_STATE')
+
+        const tokenResponse = await request(app)
+        .post('/api/oauth/token')
+        .set('Content-Type', 'application/x-www-form-urlencoded')
+        .send('grant_type=authorization_code&code=SOME_CODE&client_id=upfirst&redirect_uri=http://localhost:8081/process')
+        .expect(400);
+
+        expect(tokenResponse.body).toHaveProperty('error');
+        expect(tokenResponse.body.error).toBe('invalid_grant');
+        if(tokenResponse.body.error_description) expect(tokenResponse.body.error_description).toMatch(/redirect_uri/i);
+    })
 })

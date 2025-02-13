@@ -6,21 +6,32 @@ export const authorizationCodeExpirationLength = 10 * 60 * 1000; // In ms
 export const jwtExpirationLength = 2 * 60 * 60; // In seconds
 export const refreshTokenExpirationLength = 30 * 24 * 60 * 60 * 1000; // In ms
 
-export const valid_redirect_uris = [
-    'http://localhost:8081/process',
-]
-
-export const valid_client_ids = [
-    'upfirst',
-    'different'
-]
-
-export const confidential_clients:
+export const clients:
 {
-    [index: string]: {
+    [index: string]: 
+    {
+        redirect_uris: string[],
+        confidential: false
+    } | {
+        redirect_uris: string[],
+        confidential: true,
         client_secret: string
     }
-} = {};
+} = {
+    "upfirst": {
+        redirect_uris: ['http://default.com', 'http://localhost:8081/process'],
+        confidential: false
+    },
+    "different": {
+        redirect_uris: ['http://localhost:8081/process'],
+        confidential: false
+    },
+    "confidential": {
+        redirect_uris: ['http://default.com'],
+        confidential: true,
+        client_secret: "SOME_SECRET"
+    }
+}
 
 // Stores information on all authorization codes that have been issued but not used. Codes are removed once used
 export const valid_codes: 

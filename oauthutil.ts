@@ -1,12 +1,41 @@
-import { jwt_secret, refreshTokenExpirationLength, valid_client_ids, valid_codes, valid_refresh_tokens } from './oauthvalues';
+import { jwt_secret, refreshTokenExpirationLength, clients, valid_codes, valid_refresh_tokens } from './oauthvalues';
 import * as crypto from 'crypto';
 import * as jose from 'jose';
 import { authenticateClient, getUserPermissions } from './auth';
 
 /**
+ * Checks that the client_id is present and valid, and that the redirect_uri is registered for that client if supplied
+ */
+export function validateRedirectURI(client_id: string | undefined, redirect_uri: string | undefined)
+: {success: true} | {success: false, message: string}
+{
+    // Strip redirect_uri fragment
+    redirect_uri = redirect_uri?.split('#')[0];
+
+    // Validate client_id
+    if(!client_id) return {
+        success: false,
+        message: 'Please provide a client_id'
+    }
+    client_id = client_id.toString();
+    if(!clients[client_id]) return {
+        success: false,
+        message: 'Invalid client_id'
+    }
+
+    // Validate redirect_uri
+    if(redirect_uri && !clients[client_id].redirect_uris.includes(redirect_uri)) return {
+        success: false,
+        message: 'Invalid redirect_uri'
+    }
+
+    return {success: true}
+}
+
+/**
  * Check that all necessary params for authorization are present and valid. This excludes checks for a valid redirect_uri
  */
-export function validateParams(response_type: any, client_id: any)
+export function validateParams(response_type: string | undefined)
 : {success: true} | {success: false, error: {error: string, error_description?: string}}
 {
     if(!response_type) return {
@@ -15,23 +44,13 @@ export function validateParams(response_type: any, client_id: any)
             error: 'invalid_request', 
             error_description: 'Response type required'
     }}
-    if(response_type!.toString() != 'code') return {
+    if(response_type != 'code') return {
         success: false,
         error: {
             error: 'unsupported_response_type',
     }}
-    if(!client_id) return {
-        success: false,
-        error: {
-            error: 'invalid_request',
-            error_description: 'Client id required'
-    }}
-    if(!valid_client_ids.includes(client_id.toString())) return {
-        success: false,
-        error: {
-            error: 'unauthorized_client',
-        }
-    }
+
+    // Checking other response types and if they are allowed for the requesting client goes here
 
     return {success: true};
 }
@@ -53,7 +72,7 @@ export function generateCode(): string {
 /**
  * Verify all parameters necessary to grant an access token are present and valid. This also checks that the request is authorized.
  */
-export function validateTokenRequest(grant_type: string | undefined, code: string | undefined, redirect_uri: string | undefined, client_id: string | undefined, refresh_token: string | undefined, client_secret: string | undefined)
+export function validateTokenRequest(grant_type: string | undefined, code: string | undefined, redirect_uri: string, client_id: string | undefined, refresh_token: string | undefined, client_secret: string | undefined)
 : {success: true, validKey: string} | {success: false, error: {error: string, error_description?: string}}
 {
     // Verify existance of all necessary parameters
@@ -64,13 +83,6 @@ export function validateTokenRequest(grant_type: string | undefined, code: strin
             error_description: 'Request missing grant_type'
         }
     }
-    if(!redirect_uri) return {
-        success: false,
-        error: {
-            error: 'invalid_request',
-            error_description: 'Request missing redirect_uri'
-        }
-    }
     if(!client_id) return {
         success: false,
         error: {
@@ -78,7 +90,7 @@ export function validateTokenRequest(grant_type: string | undefined, code: strin
             error_description: 'Request missing client_id'
         }
     }
-    if(!valid_client_ids.includes(client_id.toString())) return {
+    if(!clients[client_id.toString()]) return {
         success: false,
         error: {
             error: 'invalid_client',
