@@ -16,8 +16,8 @@ describe('Challenge Tests', () => {
 
         const response = await request(app)
         .get('/api/oauth/authorize?client_id=upfirst&redirect_uri=http%3A%2F%2Flocalhost%3A8081%2Fprocess&response_type=code&state=SOME_STATE')
+        .expect(302)
 
-        expect(response.status).toBe(302);
         expect(response.headers).toHaveProperty('location');
         expect(response.header['location']).toMatch('http://localhost:8081/process?code=SOME_CODE&state=SOME_STATE');
     })
@@ -60,7 +60,6 @@ describe('Authorization endpoint', () => {
         .get('/api/oauth/authorize?client_id=upfirst&response_type=code&state=SOME_STATE')
         .expect(302);
 
-        expect(response.status).toBe(302);
         expect(response.headers).toHaveProperty('location');
         expect(response.header['location']).toMatch('http://default.com?code=SOME_CODE&state=SOME_STATE');
     })
@@ -68,8 +67,8 @@ describe('Authorization endpoint', () => {
     it('should respond bad request when bad redirect_uri supplied', async () => {
         const response = await request(app)
         .get('/api/oauth/authorize?client_id=upfirst&redirect_uri=http%3A%2F%2Fwww.badexample.com%2Fprocess&response_type=code&state=SOME_STATE')
+        .expect(400)
 
-        expect(response.status).toBe(400);
         expect(response.text).toMatch(/redirect_uri/i);
     })
 
@@ -84,8 +83,8 @@ describe('Authorization endpoint', () => {
     it('should redirect with error invalid_request when response_type missing', async () => {
         const response = await request(app)
         .get('/api/oauth/authorize?client_id=upfirst&redirect_uri=http%3A%2F%2Flocalhost%3A8081%2Fprocess&state=SOME_STATE')
+        .expect(302)
 
-        expect(response.status).toBe(302);
         expect(response.headers).toHaveProperty('location');
         expect(response.header['location']).toMatch(/error=invalid_request/i);
     })
@@ -104,8 +103,8 @@ describe('Authorization endpoint', () => {
 
         const response = await request(app)
         .get('/api/oauth/authorize?client_id=upfirst&redirect_uri=http%3A%2F%2Flocalhost%3A8081%2Fprocess&response_type=code&state=SOME_STATE')
+        .expect(302)
 
-        expect(response.status).toBe(302);
         expect(response.headers).toHaveProperty('location');
         expect(response.header['location']).toMatch(/error=access_denied/i);
     })
@@ -113,8 +112,8 @@ describe('Authorization endpoint', () => {
     it('should redirect with error unsupported_response_type when bad response_type supplied', async () => {
         const response = await request(app)
         .get('/api/oauth/authorize?client_id=upfirst&redirect_uri=http%3A%2F%2Flocalhost%3A8081%2Fprocess&response_type=token&state=SOME_STATE')
+        .expect(302)
 
-        expect(response.status).toBe(302);
         expect(response.headers).toHaveProperty('location');
         expect(response.header['location']).toMatch(/error=unsupported_response_type/i);
     })
@@ -122,8 +121,8 @@ describe('Authorization endpoint', () => {
     it('should generate random code when successful', async () => {
         const response = await request(app)
         .get('/api/oauth/authorize?client_id=upfirst&redirect_uri=http%3A%2F%2Flocalhost%3A8081%2Fprocess&response_type=code&state=SOME_STATE')
+        .expect(302)
 
-        expect(response.status).toBe(302);
         expect(response.headers).toHaveProperty('location');
         expect(response.header['location']).toMatch(/code=[^&]/i);
     })
